@@ -26,7 +26,7 @@ ONNX_OPERATOR_KERNEL_EX(
     Range);
 
 template <typename T>
-static Status ComputeRange(OpKernelContext* ctx) {
+static Status ComputeRange(cudaStream_t stream, OpKernelContext* ctx) {
   const auto& start_tensor = *ctx->Input<Tensor>(0);
   const auto& limit_tensor = *ctx->Input<Tensor>(1);
   const auto* delta_tensor_ptr = ctx->Input<Tensor>(2);
@@ -49,15 +49,17 @@ static Status ComputeRange(OpKernelContext* ctx) {
 
   // Start, Limit and Delta are stored in GPU. So we need copy it to CPU to read.
   // It is better to store these tensors in pinned memory or CPU for better performance.
+  // According to CUDA programming guide, the transfers from device memory to pageable host memory will return only once the copy has completed.
+  // So, cudaStreamSynchronize is not necessary to be called after cudaMemcpyAsync here.
   T start;
-  CUDA_RETURN_IF_ERROR(cudaMemcpy(&start, start_tensor.template Data<T>(), sizeof(T), cudaMemcpyDeviceToHost));
+  CUDA_RETURN_IF_ERROR(cudaMemcpyAsync(&start, start_tensor.template Data<T>(), sizeof(T), cudaMemcpyDeviceToHost, stream));
 
   T limit;
-  CUDA_RETURN_IF_ERROR(cudaMemcpy(&limit, limit_tensor.template Data<T>(), sizeof(T), cudaMemcpyDeviceToHost));
+  CUDA_RETURN_IF_ERROR(cudaMemcpyAsync(&limit, limit_tensor.template Data<T>(), sizeof(T), cudaMemcpyDeviceToHost, stream));
 
   T delta = T(1);
   if (delta_tensor_ptr != nullptr) {
-    CUDA_RETURN_IF_ERROR(cudaMemcpy(&delta, delta_tensor_ptr->template Data<T>(), sizeof(T), cudaMemcpyDeviceToHost));
+    CUDA_RETURN_IF_ERROR(cudaMemcpyAsync(&delta, delta_tensor_ptr->template Data<T>(), sizeof(T), cudaMemcpyDeviceToHost, stream));
   }
 
   if (delta == T(0)) {
@@ -71,7 +73,7 @@ static Status ComputeRange(OpKernelContext* ctx) {
   T* y = ctx->Output(0, shape)->template MutableData<T>();
 
   if (count > 0) {
-    if (!RangeImpl(start, delta, count, y)) {
+    if (!RangeImpl(stream, start, delta, count, y)) {
       CUDA_CALL(cudaGetLastError());
       return Status(common::ONNXRUNTIME, common::FAIL);
     }
@@ -84,8 +86,8 @@ namespace cuda_range_internal {
 
 template <class T>
 struct CallCudaRangeImpl {
-  Status operator()(OpKernelContext* ctx) const {
-    return ComputeRange<T>(ctx);
+  Status operator()(cudaStream_t stream, OpKernelContext* ctx) const {
+    return ComputeRange<T>(stream, ctx);
   }
 };
 
@@ -100,7 +102,7 @@ Status Range::ComputeInternal(OpKernelContext* ctx) const {
   utils::MLTypeCallDispatcherRet<Status, cuda_range_internal::CallCudaRangeImpl, int32_t,
                                  float, int64_t, double, int16_t>
       t_disp(input_tensor->GetElementType());
-  return t_disp.Invoke(ctx);
+  return t_disp.Invoke(Stream(), ctx);
 }
 
 }  // namespace cuda

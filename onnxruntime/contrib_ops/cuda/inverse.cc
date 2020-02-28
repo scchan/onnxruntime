@@ -63,7 +63,7 @@ Status CheckForSingularity(const IAllocatorUniquePtr<int>& info, const std::uniq
 
 template <typename T>
 struct Inverse::ComputeImpl {
-  Status operator()(Inverse::CublasHandle cublas_h, const Inverse* inst, const Tensor& input, Tensor& output,
+  Status operator()(cudaStream_t stream, Inverse::CublasHandle cublas_h, const Inverse* inst, const Tensor& input, Tensor& output,
                     const IAllocatorUniquePtr<int>& info, const IAllocatorUniquePtr<int>& pivots,
                     size_t num_batches, size_t rows) const {
     using namespace onnxruntime::cuda;
@@ -79,7 +79,7 @@ struct Inverse::ComputeImpl {
       IAllocatorUniquePtr<float> input_workspace = inst->GetScratchBuffer<float>(input_count);
       if (std::is_same<T, MLFloat16>::value) {
         // Convert from MLFloat16(half) to float
-        Impl_Cast<CudaT, float>(reinterpret_cast<const CudaT*>(input.Data<MLFloat16>()), input_workspace.get(), input_count);
+        Impl_Cast<CudaT, float>(stream, reinterpret_cast<const CudaT*>(input.Data<MLFloat16>()), input_workspace.get(), input_count);
       } else {
         CUDA_RETURN_IF_ERROR(cudaMemcpy(input_workspace.get(), input.Data<float>(), sizeof(float) * input_count,
                                         cudaMemcpyDeviceToDevice));
@@ -100,7 +100,7 @@ struct Inverse::ComputeImpl {
         CUBLAS_RETURN_IF_ERROR(cublasSgetriBatched(cublas_h, dim, matrix_ptrs.get(), dim, pivots.get(), output_ptrs.get(), dim, info.get(), n_batches));
         ORT_RETURN_IF_ERROR(CheckForSingularity(info, info_cpu, num_batches));
         // Copy the result to output with casting
-        Impl_Cast<float, CudaT>(ml_float_output.get(), reinterpret_cast<CudaT*>(output.MutableData<MLFloat16>()), input_count);
+        Impl_Cast<float, CudaT>(stream, ml_float_output.get(), reinterpret_cast<CudaT*>(output.MutableData<MLFloat16>()), input_count);
         // We are done here
       } else {
         ORT_RETURN_IF_ERROR(ComputeMatrixOffsets<float>(output.MutableData<float>(), num_batches, rows, output_ptrs));
@@ -152,7 +152,7 @@ Status Inverse::ComputeInternal(OpKernelContext* ctx) const {
   IAllocatorUniquePtr<int> pivots = GetScratchBuffer<int>(rows * num_batches);
 
   utils::MLTypeCallDispatcherRet<Status, ComputeImpl, float, double, MLFloat16> t_disp(input->GetElementType());
-  return t_disp.Invoke(Base::CublasHandle(), this, *input, *output, info, pivots, num_batches, rows);
+  return t_disp.Invoke(Stream(), Base::CublasHandle(), this, *input, *output, info, pivots, num_batches, rows);
 }
 
 }  // namespace cuda
