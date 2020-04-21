@@ -378,7 +378,8 @@ void HostApplyLayerNorm(
       mean,
       invvar,
       input,
-      n1, n2,
+      static_cast<int>(n1), 
+      static_cast<int>(n2),
       U(epsilon),
       gamma, beta, warp_size);
 }
@@ -724,7 +725,8 @@ void HostLayerNormGradient(
   hipLaunchKernelGGL(cuComputePartGradGammaBeta, dim3(blocks2), dim3(threads2), nshared2, 0, 
       dout,
       input,
-      n1, n2,
+      static_cast<int>(n1), 
+      static_cast<int>(n2),
       mean,
       invvar,
       part_grad_gamma,
@@ -734,10 +736,11 @@ void HostLayerNormGradient(
   const dim3 blocks3((n2 + threads2.x - 1) / threads2.x, 1, 1);
   const int nshared3 = threads3.x * threads3.y * sizeof(U);
   hipLaunchKernelGGL(cuComputeGradGammaBeta, dim3(blocks3), dim3(threads3), nshared3, 0, 
-      part_grad_gamma,
-      part_grad_beta,
+      reinterpret_cast<const U*>(part_grad_gamma),
+      reinterpret_cast<const U*>(part_grad_beta),
       part_size,
-      n1, n2,
+      static_cast<int>(n1), 
+      static_cast<int>(n2),
       grad_gamma,
       grad_beta);
 
@@ -750,7 +753,8 @@ void HostLayerNormGradient(
   hipLaunchKernelGGL(cuComputeGradInput, dim3(blocks1), dim3(threads1), nshared, 0, 
       dout,
       input,
-      n1, n2,
+      static_cast<int>(n1), 
+      static_cast<int>(n2),
       mean,
       invvar,
       gamma,

@@ -380,7 +380,8 @@ void HostApplyLayerNorm(
       mean,
       invvar,
       input,
-      n1, n2,
+      static_cast<int>(n1), 
+      static_cast<int>(n2),
       U(epsilon),
       gamma, beta, warp_size);
 }

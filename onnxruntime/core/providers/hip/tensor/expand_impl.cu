@@ -137,7 +137,8 @@ Status ExpandImpl(
   case sizeof(TYPE):                                                                                     \
     hipLaunchKernelGGL(ExpandKernel, dim3(blocksPerGrid), dim3(GridDim::maxThreadsPerBlock), 0, 0,                                      \
         rank, N_output, reinterpret_cast<const TYPE*>(input_data), reinterpret_cast<TYPE*>(output_data), \
-        fdm_output_strides.GpuPtr(), input_view_strides.GpuPtr());                                       \
+        reinterpret_cast<const fast_divmod*>(fdm_output_strides.GpuPtr()), \
+        reinterpret_cast<const int64_t*>(input_view_strides.GpuPtr())); \
     break
 
   switch (element_size) {
