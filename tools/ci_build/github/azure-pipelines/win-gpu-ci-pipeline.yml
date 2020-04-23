@@ -4,10 +4,10 @@ jobs:
   strategy:
     maxParallel: 2
     matrix:
-      # debug:
-      #   BuildConfig: 'Debug'
-      release:
-        BuildConfig: 'RelWithDebInfo'
+      debug:
+        BuildConfig: 'Debug'
+      # release:
+      #   BuildConfig: 'RelWithDebInfo'
   variables:
     OrtPackageId: 'Microsoft.ML.OnnxRuntime'
     MsbuildArguments: '-detailedsummary -maxcpucount -consoleloggerparameters:PerformanceSummary'
