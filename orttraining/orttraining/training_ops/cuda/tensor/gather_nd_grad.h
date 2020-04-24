@@ -1,17 +1,20 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+#pragma once
+
 #include "core/common/common.h"
 #include "core/framework/op_kernel.h"
 #include "core/providers/cuda/cuda_common.h"
-#include "core/providers/cpu/tensor/gather.h"
+#include "core/providers/cuda/tensor/gather_nd.h"
 
 namespace onnxruntime {
 namespace cuda {
 
-class Gather final : public CudaKernel, public GatherBase {
+template <typename Tind>
+class GatherNDGrad final : public GatherNDBase {
  public:
-  Gather(const OpKernelInfo& info) : CudaKernel(info), GatherBase(info) {}
+  GatherNDGrad(const OpKernelInfo& info) : GatherNDBase(info) {}
   Status ComputeInternal(OpKernelContext* context) const override;
 };
 
