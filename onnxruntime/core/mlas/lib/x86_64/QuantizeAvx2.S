@@ -21,61 +21,48 @@ Abstract:
 
         .intel_syntax noprefix
 
+// Used share data as below
+// MLasPackBytesMM256VpshufbControl:
+//         .byte 0,4,8,12,        255,255,255,255, 255,255,255,255, 255,255,255,255
+//         .byte 255,255,255,255, 0,4,8,12,        255,255,255,255, 255,255,255,255
+// MLasPackBytesMM256VpermpsControl:
+//         .int  0, 5, 2, 3, 4, 1, 6, 7
+
 //
 // Stack frame layout for the QLinearBinaryElementwise kernel.
 //
-        .equ    QLinearBinaryElementwiseFrame_ZeroPointA, 0
-        .equ    QLinearBinaryElementwiseFrame_ZeroPointB, 8
-        .equ    QLinearBinaryElementwiseFrame_ZeroPointC, 16
-        .equ    QLinearBinaryElementwiseFrame_ReturnAddress, 24
-        .equ    QLinearBinaryElementwiseFrame_N, 32
+        .equ    .LQLinearBinaryElementwiseFrame_ReturnAddress, 0
+        .equ    .LQLinearBinaryElementwiseFrame_N, 8
 
         .text
 
-        .p2align 5
-.LMM256PackBytesControlData:
-        .byte 0,4,8,12,        255,255,255,255, 255,255,255,255, 255,255,255,255
-        .byte 255,255,255,255, 0,4,8,12,        255,255,255,255, 255,255,255,255
-.LMM256PackBytesControlDataPermPS:
-        .int  0, 5, 2, 3, 4, 1, 6, 7
-
         .macro UnpackBytesDWords Target, Source, DataType
-.ifeqs "\DataType\()","Int8"
+.ifeqs "\DataType\()","S8"
         vpmovsxbd \Target\(),\Source\()
 .else
         vpmovzxbd \Target\(),\Source\()
 .endif
         .endm
 
-        .macro SetMaxInt8ValueDW Target, DataType
-.ifeqs "\DataType\()","Int8"
-        mov \Target\(),DWORD PTR 127
+        .macro SetMax8BitsValue Target, DataType
+.ifeqs "\DataType\()","S8"
+        mov \Target\(),QWORD PTR 127
 .else
-        mov \Target\(),DWORD PTR 255
+        mov \Target\(),QWORD PTR 255
 .endif
         .endm
 
-        .macro SetMinInt8ValueDW Target, DataType
-.ifeqs "\DataType\()","Int8"
-        mov \Target\(),DWORD PTR -128
+        .macro SetMin8BitsValue Target, DataType
+.ifeqs "\DataType\()","S8"
+        mov \Target\(),QWORD PTR -128
 .else
-        mov \Target\(),DWORD PTR 0
-.endif
-        .endm
-
-        .macro CheckInt8DataType DataType
-.ifeqs "\DataType\()","Int8"
-.else
-.ifeqs "\DataType\()","UInt8"
-.else
-        Invalid Datatype specified, please choose from Int8 or UInt8
-.endif
+        mov \Target\(),QWORD PTR 0
 .endif
         .endm
 
 /*++
     Generate function for QLienarBinaryElementwiseOp()
-        DataType : Uint8 or Int8
+        DataType : S8 or U8
         OpName:  Add, Mul, etc
         OpInstruction: vaddps, vmulps, etc
 */
@@ -91,19 +78,19 @@ Arguments:
 
     InputA (rdi) - Supplies the address of InputA.
 
-    ScaleA (xmm0) - 
+    ScaleA (xmm0) - Supplies A's Scale value in float.
 
-    ZeroPointA (rsi) - 
+    ZeroPointA (rsi) - Supplies A's zero point value.
 
     InputB (rdx) - Supplies the address of InputB.
 
-    ScaleB (xmm1) -
+    ScaleB (xmm1) - Supplies B's Scale value in float.
 
-    ZeroPointB (rcx) - 
+    ZeroPointB (rcx) - Supplies B's zero point value.
 
-    ScaleC (xmm2) - 
+    ScaleC (xmm2) - Supplies C's Scale value in float.
 
-    ZeroPointC (r8) - 
+    ZeroPointC (r8) - Supplies C's zero point value.
 
     OutputC (r9) - Supplies the address of OutputC.
 
@@ -113,99 +100,94 @@ Return Value:
 
     None.
 --*/
-        .globl  C_UNDERSCORE(MlasQLinear\OpName\()Avx2\DataType\())
-C_UNDERSCORE(MlasQLinear\OpName\()Avx2\DataType\()):
-        CheckInt8DataType \DataType\()
+        .globl  C_UNDERSCORE(MlasQLinear\OpName\()\DataType\()KernelAvx2)
+C_UNDERSCORE(MlasQLinear\OpName\()\DataType\()KernelAvx2):
+        movq    xmm3,rsi
+        movq    xmm4,rcx
+        movq    xmm5,r8
+        vbroadcastss ymm3,xmm3                  # Vector of ZeroPointA
+        vbroadcastss ymm4,xmm4                  # Vector of ZeroPointB
+        vbroadcastss ymm5,xmm5                  # Vector of ZeroPointC
+        vbroadcastss ymm0,xmm0                  # Vector of ScaleA
+        vbroadcastss ymm1,xmm1                  # Vector of ScaleB
+        vbroadcastss ymm2,xmm2                  # Vector of ScaleC
 
-        sub     rsp,QLinearBinaryElementwiseFrame_ReturnAddress
-        mov     QLinearBinaryElementwiseFrame_ZeroPointA[rsp],rsi
-        mov     QLinearBinaryElementwiseFrame_ZeroPointB[rsp],rcx
-        mov     QLinearBinaryElementwiseFrame_ZeroPointC[rsp],r8
-        mov     rcx,QLinearBinaryElementwiseFrame_N[rsp]
+        lea     r8,C_UNDERSCORE(MLasPackBytesMM256VpshufbControl)[rip]
+        vmovaps ymm10,[r8]
+        lea     rsi,C_UNDERSCORE(MLasPackBytesMM256VpermpsControl)[rip]
+        vmovaps ymm11,[rsi]
 
-        vbroadcastss ymm0,xmm0                  # VectorScaleA
-        vbroadcastss ymm1,xmm1                  # VectorScaleB
-        vbroadcastss ymm2,xmm2                  # VectorScaleC
-        vbroadcastss ymm3,DWORD PTR QLinearBinaryElementwiseFrame_ZeroPointA[rsp]
-        vbroadcastss ymm4,DWORD PTR QLinearBinaryElementwiseFrame_ZeroPointB[rsp]
-        vbroadcastss ymm5,DWORD PTR QLinearBinaryElementwiseFrame_ZeroPointC[rsp]
-
-        # vector for pack to int8
-        vmovaps ymm10,.LMM256PackBytesControlData[rip]
-        vmovaps ymm11,.LMM256PackBytesControlDataPermPS[rip]
-
-        SetMaxInt8ValueDW r8d,\DataType\()
-        sub     r8d,DWORD PTR QLinearBinaryElementwiseFrame_ZeroPointC[rsp]
-        cvtsi2ss xmm6,r8d
+        SetMax8BitsValue r8,\DataType\()
+        movq         xmm6,r8
         vbroadcastss ymm6,xmm6
+        vpsubd       ymm6,ymm6,ymm5
 
-        SetMinInt8ValueDW r8d,\DataType\()
-        sub     r8d,DWORD PTR QLinearBinaryElementwiseFrame_ZeroPointC[rsp]
-        cvtsi2ss xmm7,r8d
+        SetMin8BitsValue rsi,\DataType\()
+        movq         xmm7,rsi
         vbroadcastss ymm7,xmm7
-        mov rax,QWORD PTR 8
+        vpsubd       ymm7,ymm7,ymm5
 
-.LQLinear\OpName\()Avx2\DataType\()Process8Loop:
+        mov     rcx,.LQLinearBinaryElementwiseFrame_N[rsp]
+        mov     rax,QWORD PTR 8
+
+.LQLinear\OpName\()\DataType\()Avx2Process8Loop:
         test    rcx,rcx
-        jz      .LQLinear\OpName\()Avx2\DataType\()Exit
+        jz      .LQLinear\OpName\()\DataType\()Avx2Exit
 
         UnpackBytesDWords ymm8,[rdi],\DataType\()
         UnpackBytesDWords ymm9,[rdx],\DataType\()
-        vpsubd  ymm9,ymm9,ymm4
+        vpsubd  ymm9,ymm9,ymm4                  # - Zero Points respectively
         vpsubd  ymm8,ymm8,ymm3
-        vcvtdq2ps ymm8,ymm8
+        vcvtdq2ps ymm8,ymm8                     # convert to float
         vcvtdq2ps ymm9,ymm9
-        vmulps  ymm8,ymm8,ymm0
+        vmulps  ymm8,ymm8,ymm0                  # * Scales respectively 
         vmulps  ymm9,ymm9,ymm1
 
-        \OpInstruction  ymm8,ymm8,ymm9
+        \OpInstruction  ymm8,ymm8,ymm9          # \OpName\() two float values
 
-        # Quantize
-        vdivps  ymm8,ymm8,ymm2
-        add     rdi,rax
+        vdivps  ymm8,ymm8,ymm2                  # Quantize 8 values, / ScaleC
+        add     rdi,rax                         # two out-of-order instructions
         add     rdx,rax
-        vmaxps  ymm8,ymm8,ymm7
-        vminps  ymm8,ymm8,ymm6
-        vcvtps2dq ymm8,ymm8
-        vpaddd  ymm8,ymm8,ymm5
-        # pack 32bits integers into 8bit integers
-        vpshufb ymm8,ymm8,ymm10
+        vcvtps2dq ymm8,ymm8                     # round()
+        vpmaxsd ymm8,ymm8,ymm7
+        vpminsd ymm8,ymm8,ymm6
+        vpaddd  ymm8,ymm8,ymm5                  # + ZeroPointC
+        vpshufb ymm8,ymm8,ymm10                 # pack 32bits integers into 8bit integers
         vpermps ymm8,ymm11,ymm8
 
         sub     rcx,rax
-        jb      .LQLinear\OpName\()Avx2\DataType\()StoreLessThan8
+        jb      .LQLinear\OpName\()\DataType\()Avx2StoreLessThan8
 
         movsd   QWORD PTR [r9],xmm8
         add     r9,rax
-        jmp     .LQLinear\OpName\()Avx2\DataType\()Process8Loop
+        jmp     .LQLinear\OpName\()\DataType\()Avx2Process8Loop
 
-.LQLinear\OpName\()Avx2\DataType\()StoreLessThan8:
+.LQLinear\OpName\()\DataType\()Avx2StoreLessThan8:
         add     rcx,rax
         pextrq  rax,xmm8,0
 
-.LQLinear\OpName\()Avx2\DataType\()StoreLoop:
+.LQLinear\OpName\()\DataType\()Avx2StoreLoop:
         mov     BYTE PTR [r9],al
         shr     rax,8
         inc     r9
         dec     rcx
-        jnz     .LQLinear\OpName\()Avx2\DataType\()StoreLoop
+        jnz     .LQLinear\OpName\()\DataType\()Avx2StoreLoop
 
-.LQLinear\OpName\()Avx2\DataType\()Exit:
+.LQLinear\OpName\()\DataType\()Avx2Exit:
         vzeroupper
-        add     rsp,QLinearBinaryElementwiseFrame_ReturnAddress
         ret
 
         .endm
 
 
 //
-// Generate the QLinearAdd Avx2 Int8 kernel.
+// Generate the QLinearAdd Avx2 S8 kernel.
 //
-QLinearBinaryElementwiseOpAvx2 Int8,Add,vaddps
+QLinearBinaryElementwiseOpAvx2 S8,Add,vaddps
 
 //
-// Generate the QLinearAdd Avx2 UInt8 kernel.
+// Generate the QLinearAdd Avx2 U8 kernel.
 //
-QLinearBinaryElementwiseOpAvx2 UInt8,Add,vaddps
+QLinearBinaryElementwiseOpAvx2 U8,Add,vaddps
 
         .end

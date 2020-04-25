@@ -118,8 +118,8 @@ Return Value:
     this->LogisticKernelRoutine = MlasLogisticKernel;
     this->TanhKernelRoutine = MlasTanhKernel;
     this->ErfKernelRoutine = MlasErfKernel;
-    this->QLinearAddInt8Routine = MlasQuantizeLinearAddKernel_S8;
-    this->QLinearAddUInt8Routine = MlasQuantizeLinearAddKernel_U8;
+    this->QLinearAddS8Kernel = MlasQLinearAddS8Kernel;
+    this->QLinearAddU8Kernel = MlasQLinearAddU8Kernel;
 
     this->NchwcBlockSize = 8;
     this->PreferredBufferAlignment = MLAS_DEFAULT_PREFERRED_BUFFER_ALIGNMENT;
@@ -193,8 +193,8 @@ Return Value:
                 this->LogisticKernelRoutine = MlasLogisticKernelFma3;
                 this->TanhKernelRoutine = MlasTanhKernelFma3;
                 this->ErfKernelRoutine = MlasErfKernelFma3;
-                this->QLinearAddInt8Routine = MlasQLinearAddAvx2Int8;
-                this->QLinearAddUInt8Routine = MlasQLinearAddAvx2UInt8;
+                this->QLinearAddS8Kernel = MlasQLinearAddS8KernelAvx2;
+                this->QLinearAddU8Kernel = MlasQLinearAddU8KernelAvx2;
 
 #if !defined(MLAS_AVX512F_UNSUPPORTED)
 

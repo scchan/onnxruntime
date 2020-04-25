@@ -256,7 +256,7 @@ MlasQuantizeLinearUnpackBytes<int8_t>(
 template<typename DataType>
 void
 MLASCALL
-MlasQuantizeLinearAddKernel(
+MlasQLinearAddKernel(
     const DataType* InputA,
     float ScaleA,
     DataType ZeroPointA,
@@ -393,7 +393,7 @@ Return Value:
 template<typename DataType>
 void
 MLASCALL
-MlasQuantizeLinearAddKernel(
+MlasQLinearAddKernel(
     const DataType* InputA,
     float ScaleA,
     DataType ZeroPointA,
@@ -449,7 +449,7 @@ MlasQuantizeLinear<uint8_t>(
 template<>
 void
 MLASCALL
-MlasQuantizeLinearAdd<int8_t>(
+MlasQLinearAdd<int8_t>(
     const int8_t* InputA,
     float ScaleA,
     int8_t ZeroPointA,
@@ -480,9 +480,9 @@ MlasQuantizeLinearAdd<int8_t>(
     for (int64_t i = 0; i < group_count; ++i) {
 
 #if defined(MLAS_TARGET_AMD64)
-            MlasPlatform.QLinearAddInt8Routine(
+            MlasPlatform.QLinearAddS8Kernel(
 #else
-            MlasQuantizeLinearAddKernel<int8_t>(
+            MlasQLinearAddKernel<int8_t>(
 #endif
                 InputA + i * GROUPSIZE, ScaleA, ZeroPointA,
                 InputB + i * GROUPSIZE, ScaleB, ZeroPointB,
@@ -497,9 +497,9 @@ MlasQuantizeLinearAdd<int8_t>(
     onnxruntime::concurrency::ThreadPool::TryBatchParallelFor(
         ThreadPool, static_cast<ptrdiff_t>(group_count), [&](ptrdiff_t i) {
 #if defined(MLAS_TARGET_AMD64)
-            MlasPlatform.QLinearAddInt8Routine(
+            MlasPlatform.QLinearAddS8Kernel(
 #else
-            MlasQuantizeLinearAddKernel<int8_t>(
+            MlasQLinearAddKernel<int8_t>(
 #endif
                 InputA + i * GROUPSIZE, ScaleA, ZeroPointA,
                 InputB + i * GROUPSIZE, ScaleB, ZeroPointB,
@@ -514,7 +514,7 @@ MlasQuantizeLinearAdd<int8_t>(
 template<>
 void
 MLASCALL
-MlasQuantizeLinearAdd<uint8_t>(
+MlasQLinearAdd<uint8_t>(
     const uint8_t* InputA,
     float ScaleA,
     uint8_t ZeroPointA,
@@ -544,9 +544,9 @@ MlasQuantizeLinearAdd<uint8_t>(
 #endif
     for (int64_t i = 0; i < group_count; ++i) {
 #if defined(MLAS_TARGET_AMD64)
-        MlasPlatform.QLinearAddUInt8Routine(
+        MlasPlatform.QLinearAddU8Kernel(
 #else
-        MlasQuantizeLinearAddKernel<uint8_t>(
+        MlasQLinearAddKernel<uint8_t>(
 #endif
             InputA + i * GROUPSIZE, ScaleA, ZeroPointA,
             InputB + i * GROUPSIZE, ScaleB, ZeroPointB,
@@ -561,9 +561,9 @@ MlasQuantizeLinearAdd<uint8_t>(
     onnxruntime::concurrency::ThreadPool::TryBatchParallelFor(
         ThreadPool, static_cast<ptrdiff_t>(group_count), [&](ptrdiff_t i) {
 #if defined(MLAS_TARGET_AMD64)
-            MlasPlatform.QLinearAddUInt8Routine(
+            MlasPlatform.QLinearAddU8Kernel(
 #else
-            MlasQuantizeLinearAddKernel<uint8_t>(
+            MlasQLinearAddKernel<uint8_t>(
 #endif
                 InputA + i * GROUPSIZE, ScaleA, ZeroPointA,
                 InputB + i * GROUPSIZE, ScaleB, ZeroPointB,
@@ -710,7 +710,7 @@ Return Value:
 
 void
 MLASCALL
-MlasQuantizeLinearAddKernel_S8(
+MlasQLinearAddS8Kernel(
     const int8_t* InputA,
     float ScaleA,
     int8_t ZeroPointA,
@@ -723,7 +723,7 @@ MlasQuantizeLinearAddKernel_S8(
     size_t N
     )
 {
-    MlasQuantizeLinearAddKernel<int8_t>(
+    MlasQLinearAddKernel<int8_t>(
         InputA, ScaleA, ZeroPointA,
         InputB, ScaleB, ZeroPointB,
         ScaleC, ZeroPointC, OutputC, N
@@ -732,7 +732,7 @@ MlasQuantizeLinearAddKernel_S8(
 
 void
 MLASCALL
-MlasQuantizeLinearAddKernel_U8(
+MlasQLinearAddU8Kernel(
     const uint8_t* InputA,
     float ScaleA,
     uint8_t ZeroPointA,
@@ -745,7 +745,7 @@ MlasQuantizeLinearAddKernel_U8(
     size_t N
     )
 {
-    MlasQuantizeLinearAddKernel<uint8_t>(
+    MlasQLinearAddKernel<uint8_t>(
         InputA, ScaleA, ZeroPointA,
         InputB, ScaleB, ZeroPointB,
         ScaleC, ZeroPointC, OutputC, N
@@ -753,3 +753,13 @@ MlasQuantizeLinearAddKernel_U8(
 }
 
 #endif
+
+
+MLAS_INTERNAL_DATA  MLAS_DECLSPEC_ALIGN(const uint8_t MLasPackBytesMM256VpshufbControl[32], 32) = {
+  0,4,8,12,        255,255,255,255, 255,255,255,255, 255,255,255,255,
+  255,255,255,255, 0,4,8,12,        255,255,255,255, 255,255,255,255
+};
+
+MLAS_INTERNAL_DATA  MLAS_DECLSPEC_ALIGN(const int32_t MLasPackBytesMM256VpermpsControl[8], 32) = {
+  0, 5, 2, 3, 4, 1, 6, 7
+};

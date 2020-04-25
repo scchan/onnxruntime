@@ -446,7 +446,7 @@ MlasRequantizeOutput(
 template<typename DataType>
 void
 MLASCALL
-MlasQuantizeLinearAdd(
+MlasQLinearAdd(
     const DataType* InputA,
     float ScaleA,
     DataType ZeroPointA,
