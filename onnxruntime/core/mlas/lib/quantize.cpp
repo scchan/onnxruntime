@@ -300,8 +300,8 @@ MlasQLinearAddKernel(
     }
 
     if (N > 0) {
-        auto IntegerVectorA = MlasQuantizeLinearUnpackBytes<DataType>((MLAS_INT32X4)_mm_load_ss((const float*)InputA));
-        auto IntegerVectorB = MlasQuantizeLinearUnpackBytes<DataType>((MLAS_INT32X4)_mm_load_ss((const float*)InputB));
+        auto IntegerVectorA = MlasQuantizeLinearUnpackBytes<DataType>(_mm_castps_si128(_mm_load_ss((const float*)InputA)));
+        auto IntegerVectorB = MlasQuantizeLinearUnpackBytes<DataType>(_mm_castps_si128(_mm_load_ss((const float*)InputB)));
         auto FloatVectorC = MlasAddFloat32x4(
                 MlasDequantizeLinearVector(IntegerVectorA, ScaleVectorA, ZeroPointVectorA),
                 MlasDequantizeLinearVector(IntegerVectorB, ScaleVectorB, ZeroPointVectorB));
@@ -419,7 +419,6 @@ MlasQLinearAddKernel(
     }
 }
 
-
 #endif
 
 template
@@ -445,134 +444,6 @@ MlasQuantizeLinear<uint8_t>(
     uint8_t ZeroPoint
     );
 
-
-template<>
-void
-MLASCALL
-MlasQLinearAdd<int8_t>(
-    const int8_t* InputA,
-    float ScaleA,
-    int8_t ZeroPointA,
-    const int8_t* InputB,
-    float ScaleB,
-    int8_t ZeroPointB,
-    float ScaleC,
-    int8_t ZeroPointC,
-    int8_t* OutputC,
-    size_t N,
-    MLAS_THREADPOOL* ThreadPool
-    )
-{
-    constexpr int64_t GROUPSIZE=32*1024;
-
-#ifdef MLAS_NO_ONNXRUNTIME_THREADPOOL
-    MLAS_UNREFERENCED_PARAMETER(ThreadPool);
-    //
-    // Execute the pooling kernel routine.
-    //
-
-#if !defined(_OPENMP)
-    int64_t group_count = 1;
-#else
-    int64_t group_count = (static_cast<int64_t>(N) + GROUPSIZE - 1) / GROUPSIZE;
-    #pragma omp parallel for
-#endif
-    for (int64_t i = 0; i < group_count; ++i) {
-
-#if defined(MLAS_TARGET_AMD64)
-            MlasPlatform.QLinearAddS8Kernel(
-#else
-            MlasQLinearAddKernel<int8_t>(
-#endif
-                InputA + i * GROUPSIZE, ScaleA, ZeroPointA,
-                InputB + i * GROUPSIZE, ScaleB, ZeroPointB,
-                ScaleC, ZeroPointC, OutputC + i * GROUPSIZE,
-                (i == group_count - 1) ? (N - GROUPSIZE * (group_count - 1)) : GROUPSIZE);
-    }
-#else
-    //
-    // Use an external thread pool if one is provided.
-    // TODO: change to use MlasExecuteThreaded
-    int64_t group_count = (static_cast<int64_t>(N) + GROUPSIZE - 1) / GROUPSIZE;
-    onnxruntime::concurrency::ThreadPool::TryBatchParallelFor(
-        ThreadPool, static_cast<ptrdiff_t>(group_count), [&](ptrdiff_t i) {
-#if defined(MLAS_TARGET_AMD64)
-            MlasPlatform.QLinearAddS8Kernel(
-#else
-            MlasQLinearAddKernel<int8_t>(
-#endif
-                InputA + i * GROUPSIZE, ScaleA, ZeroPointA,
-                InputB + i * GROUPSIZE, ScaleB, ZeroPointB,
-                ScaleC, ZeroPointC, OutputC + i * GROUPSIZE,
-                (i == group_count - 1) ? (N - GROUPSIZE * (group_count - 1)) : GROUPSIZE);
-        }, 0);
-    return;
-#endif
-
-}
-
-template<>
-void
-MLASCALL
-MlasQLinearAdd<uint8_t>(
-    const uint8_t* InputA,
-    float ScaleA,
-    uint8_t ZeroPointA,
-    const uint8_t* InputB,
-    float ScaleB,
-    uint8_t ZeroPointB,
-    float ScaleC,
-    uint8_t ZeroPointC,
-    uint8_t* OutputC,
-    size_t N,
-    MLAS_THREADPOOL* ThreadPool
-    )
-{
-    constexpr int64_t GROUPSIZE=32*1024;
-
-#ifdef MLAS_NO_ONNXRUNTIME_THREADPOOL
-    MLAS_UNREFERENCED_PARAMETER(ThreadPool);
-    //
-    // Execute the pooling kernel routine.
-    //
-
-#if !defined(_OPENMP)
-    int64_t group_count = 1;
-#else
-    int64_t group_count = (static_cast<int64_t>(N) + GROUPSIZE - 1) / GROUPSIZE;
-    #pragma omp parallel for
-#endif
-    for (int64_t i = 0; i < group_count; ++i) {
-#if defined(MLAS_TARGET_AMD64)
-        MlasPlatform.QLinearAddU8Kernel(
-#else
-        MlasQLinearAddKernel<uint8_t>(
-#endif
-            InputA + i * GROUPSIZE, ScaleA, ZeroPointA,
-            InputB + i * GROUPSIZE, ScaleB, ZeroPointB,
-            ScaleC, ZeroPointC, OutputC + i * GROUPSIZE,
-            (i == group_count - 1) ? (N - GROUPSIZE * (group_count - 1)) : GROUPSIZE);
-    }
-#else
-    //
-    // Use an external thread pool if one is provided.
-    // TODO: change to use MlasExecuteThreaded
-    int64_t group_count = (static_cast<int64_t>(N) + GROUPSIZE - 1) / GROUPSIZE;
-    onnxruntime::concurrency::ThreadPool::TryBatchParallelFor(
-        ThreadPool, static_cast<ptrdiff_t>(group_count), [&](ptrdiff_t i) {
-#if defined(MLAS_TARGET_AMD64)
-            MlasPlatform.QLinearAddU8Kernel(
-#else
-            MlasQLinearAddKernel<uint8_t>(
-#endif
-                InputA + i * GROUPSIZE, ScaleA, ZeroPointA,
-                InputB + i * GROUPSIZE, ScaleB, ZeroPointB,
-                ScaleC, ZeroPointC, OutputC + i * GROUPSIZE,
-                (i == group_count - 1) ? (N - GROUPSIZE * (group_count - 1)) : GROUPSIZE);
-        }, 0);
-    return;
-#endif
-}
 
 #if defined(MLAS_SSE2_INTRINSICS)
 
@@ -708,6 +579,9 @@ Return Value:
     }
 }
 
+#endif
+
+
 void
 MLASCALL
 MlasQLinearAddS8Kernel(
@@ -752,14 +626,152 @@ MlasQLinearAddU8Kernel(
     );
 }
 
-#endif
 
+template <typename T>
+class MlasQLinearAddPlatformKernel
+{
+public:
+    typedef void (MLASCALL KernelFunction)(
+        const T* InputA,
+        float ScaleA,
+        T ZeroPointA,
+        const T* InputB,
+        float ScaleB,
+        T ZeroPointB,
+        float ScaleC,
+        T ZeroPointC,
+        T* OutputC,
+        size_t N
+        );
+
+    typedef KernelFunction* PKernelFunction;
+
+    static PKernelFunction GetKernel();
+};
+
+template <>
+MlasQLinearAddPlatformKernel<uint8_t>::PKernelFunction
+MlasQLinearAddPlatformKernel<uint8_t>::GetKernel()
+{
+    return MlasPlatform.QLinearAddU8Kernel;
+}
+
+template <>
+MlasQLinearAddPlatformKernel<int8_t>::PKernelFunction
+MlasQLinearAddPlatformKernel<int8_t>::GetKernel()
+{
+    return MlasPlatform.QLinearAddS8Kernel;
+}
+
+template <typename T>
+struct MlasQLinearAddBatch {
+    MlasQLinearAddBatch(
+        const T* InputA, float ScaleA, T ZeroPointA,
+        const T* InputB, float ScaleB, T ZeroPointB,
+        float ScaleC, T ZeroPointC, T* OutputC, size_t N, int32_t ThreadCount) :
+            InputA_(InputA), ScaleA_(ScaleA), ZeroPointA_(ZeroPointA),
+            InputB_(InputB), ScaleB_(ScaleB), ZeroPointB_(ZeroPointB),
+            ScaleC_(ScaleC), ZeroPointC_(ZeroPointC), OutputC_(OutputC), N_(N),
+            BatchCount_(1), ThreadingBatch_(32*1024) {
+        if (ThreadCount > 1) {
+            BatchCount_ = (static_cast<int64_t>(N_) + ThreadingBatch_ - 1) / ThreadingBatch_;
+            if (BatchCount_ > ThreadCount * 3) { // adjust if too many batches
+                ThreadingBatch_ = (N / (ThreadCount * 3) + 4095) & 0xFFFFFFFFFFFFF000;
+                BatchCount_ = (static_cast<int64_t>(N_) + ThreadingBatch_ - 1) / ThreadingBatch_;
+            }
+        }
+    }
+
+    void operator()(int32_t Index) const {
+#if defined(MLAS_TARGET_AMD64)
+        auto kernel = MlasQLinearAddPlatformKernel<T>::GetKernel();
+        kernel(
+#else
+        MlasQLinearAddKernel<int8_t>(
+#endif
+            InputA_ + Index * ThreadingBatch_, ScaleA_, ZeroPointA_,
+            InputB_ + Index * ThreadingBatch_, ScaleB_, ZeroPointB_,
+            ScaleC_, ZeroPointC_, OutputC_ + Index * ThreadingBatch_,
+            (Index == BatchCount_ - 1) ? (N_ - ThreadingBatch_ * (BatchCount_ - 1)) : ThreadingBatch_);
+    }
+
+    static void ThreadingRoutine(void* Context, int32_t Index) {
+        const MlasQLinearAddBatch& BatchContext = *reinterpret_cast<const MlasQLinearAddBatch*>(Context);
+        BatchContext(Index);
+    }
+
+    const T* InputA_;
+    const T* InputB_;
+    float ScaleA_, ScaleB_, ScaleC_;
+    T ZeroPointA_, ZeroPointB_, ZeroPointC_;
+    T* OutputC_;
+    size_t N_;
+    int64_t BatchCount_, ThreadingBatch_;
+};
+
+template <typename T>
+void
+MLASCALL
+MlasQLinearAdd<T>(
+    const T* InputA,
+    float ScaleA,
+    T ZeroPointA,
+    const T* InputB,
+    float ScaleB,
+    T ZeroPointB,
+    float ScaleC,
+    T ZeroPointC,
+    T* OutputC,
+    size_t N,
+    MLAS_THREADPOOL* ThreadPool
+    )
+{
+    MlasQLinearAddBatch<T> BatchContext(
+        InputA, ScaleA, ZeroPointA, InputB, ScaleB, ZeroPointB, ScaleC, ZeroPointC, OutputC, N, MlasGetMaximumThreadCount(ThreadPool));
+    
+    MlasExecuteThreaded(MlasQLinearAddBatch<T>::ThreadingRoutine, &BatchContext, (int)BatchContext.BatchCount_, ThreadPool);
+}
+
+
+template
+void
+MLASCALL
+MlasQLinearAdd<int8_t>(
+    const int8_t* InputA,
+    float ScaleA,
+    int8_t ZeroPointA,
+    const int8_t* InputB,
+    float ScaleB,
+    int8_t ZeroPointB,
+    float ScaleC,
+    int8_t ZeroPointC,
+    int8_t* OutputC,
+    size_t N,
+    MLAS_THREADPOOL* ThreadPool
+    );
+
+template
+void
+MLASCALL
+MlasQLinearAdd<uint8_t>(
+    const uint8_t* InputA,
+    float ScaleA,
+    uint8_t ZeroPointA,
+    const uint8_t* InputB,
+    float ScaleB,
+    uint8_t ZeroPointB,
+    float ScaleC,
+    uint8_t ZeroPointC,
+    uint8_t* OutputC,
+    size_t N,
+    MLAS_THREADPOOL* ThreadPool
+    );
 
 MLAS_INTERNAL_DATA  MLAS_DECLSPEC_ALIGN(const uint8_t MLasPackBytesMM256VpshufbControl[32], 32) = {
-  0,4,8,12,        255,255,255,255, 255,255,255,255, 255,255,255,255,
-  255,255,255,255, 0,4,8,12,        255,255,255,255, 255,255,255,255
+    0,4,8,12,        255,255,255,255, 255,255,255,255, 255,255,255,255,
+    255,255,255,255, 0,4,8,12,        255,255,255,255, 255,255,255,255
 };
 
 MLAS_INTERNAL_DATA  MLAS_DECLSPEC_ALIGN(const int32_t MLasPackBytesMM256VpermpsControl[8], 32) = {
-  0, 5, 2, 3, 4, 1, 6, 7
+    0, 5, 2, 3, 4, 1, 6, 7
 };

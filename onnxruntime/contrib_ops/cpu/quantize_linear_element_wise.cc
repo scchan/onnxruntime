@@ -40,12 +40,12 @@ Status QLinearBroadcastTwo(OpKernelContext& context, Input0Scalar input0scalar, 
 
 template <typename T>
 Status QLinearAdd<T>::Compute(OpKernelContext* context) const {
-  constexpr int32_t qmax = std::numeric_limits<T>::max();
-  constexpr int32_t qmin = (int32_t)std::numeric_limits<T>::min();
   auto thread_pool = context->GetOperatorThreadPool();
   return QLinearBroadcastTwo<T>(
       *context,
       [](EigenVectorMap<T> output, T input0, ConstEigenVectorMap<T> input1, float A_scale, float B_scale, float C_scale, int A_zero_point, int B_zero_point, int C_zero_point) {
+        constexpr int qmax = (int)std::numeric_limits<T>::max();
+        constexpr int qmin = (int)std::numeric_limits<T>::min();
         float a_value = A_scale * (static_cast<int>(input0) - A_zero_point);
         output = (((((input1.array().template cast<float>() - static_cast<float>(B_zero_point)) * B_scale) + a_value) / C_scale).round().template cast<int>() + C_zero_point)
                      .max(qmin)
@@ -53,6 +53,8 @@ Status QLinearAdd<T>::Compute(OpKernelContext* context) const {
                      .template cast<T>();
       },
       [](EigenVectorMap<T> output, ConstEigenVectorMap<T> input0, T input1, float A_scale, float B_scale, float C_scale, int A_zero_point, int B_zero_point, int C_zero_point) {
+        constexpr int qmax = (int)std::numeric_limits<T>::max();
+        constexpr int qmin = (int)std::numeric_limits<T>::min();
         float b_value = B_scale * (static_cast<int>(input1) - B_zero_point);
         output = (((((input0.array().template cast<float>() - static_cast<float>(A_zero_point)) * A_scale) + b_value) / C_scale).round().template cast<int>() + C_zero_point)
                      .max(qmin)
@@ -68,11 +70,11 @@ Status QLinearAdd<T>::Compute(OpKernelContext* context) const {
 
 template <typename T>
 Status QLinearMul<T>::Compute(OpKernelContext* context) const {
-  constexpr int32_t qmax = std::numeric_limits<T>::max();
-  constexpr int32_t qmin = (int32_t)std::numeric_limits<T>::min();
   return QLinearBroadcastTwo<T>(
       *context,
       [](EigenVectorMap<T> output, T input0, ConstEigenVectorMap<T> input1, float A_scale, float B_scale, float C_scale, int A_zero_point, int B_zero_point, int C_zero_point) {
+        constexpr int qmax = (int)std::numeric_limits<T>::max();
+        constexpr int qmin = (int)std::numeric_limits<T>::min();
         float a_value_scaled_b_c = A_scale * (static_cast<int>(input0) - A_zero_point) * B_scale / C_scale;
         output = (((input1.array().template cast<int>() - B_zero_point).template cast<float>() * a_value_scaled_b_c).round().template cast<int>() + C_zero_point)
                      .max(qmin)
@@ -80,6 +82,8 @@ Status QLinearMul<T>::Compute(OpKernelContext* context) const {
                      .template cast<T>();
       },
       [](EigenVectorMap<T> output, ConstEigenVectorMap<T> input0, T input1, float A_scale, float B_scale, float C_scale, int A_zero_point, int B_zero_point, int C_zero_point) {
+        constexpr int qmax = (int)std::numeric_limits<T>::max();
+        constexpr int qmin = (int)std::numeric_limits<T>::min();
         float b_value_scaled_a_c = B_scale * (static_cast<int>(input1) - B_zero_point) * A_scale / C_scale;
         output = (((input0.array().template cast<int>() - A_zero_point).template cast<float>() * b_value_scaled_a_c).round().template cast<int>() + C_zero_point)
                      .max(qmin)
@@ -87,6 +91,8 @@ Status QLinearMul<T>::Compute(OpKernelContext* context) const {
                      .template cast<T>();
       },
       [](EigenVectorMap<T> output, ConstEigenVectorMap<T> input0, ConstEigenVectorMap<T> input1, float A_scale, float B_scale, float C_scale, int A_zero_point, int B_zero_point, int C_zero_point) {
+        constexpr int qmax = (int)std::numeric_limits<T>::max();
+        constexpr int qmin = (int)std::numeric_limits<T>::min();
         output = (((((input0.array().template cast<int>() - A_zero_point).template cast<float>() * A_scale) *
                     ((input1.array().template cast<int>() - B_zero_point).template cast<float>() * B_scale)) /
                    C_scale)

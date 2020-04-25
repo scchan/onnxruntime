@@ -1,21 +1,21 @@
-/*++
-
-Copyright (c) Microsoft Corporation. All rights reserved.
-
-Licensed under the MIT License.
-
-Module Name:
-
-    QuantizeAvx2.S
-
-Abstract:
-
-    This module implements the kernels for the quantized linear add
-    for element type int8_t and uint8_t.
-
-    This implementation uses AVX2 instructions.
-
---*/
+;++
+;
+; Copyright (c) Microsoft Corporation. All rights reserved.
+;
+; Licensed under the MIT License.
+;
+; Module Name:
+;
+;    QLinearBinaryOpKernelAvx2.asm
+;
+; Abstract:
+;
+;    This module implements the kernels for the quantized linear add
+;    for element type int8_t and uint8_t.
+;
+;    This implementation uses AVX2 instructions.
+;
+;--
 
         .xlist
 INCLUDE mlasi.inc
@@ -25,8 +25,9 @@ INCLUDE mlasi.inc
         EXTERN  MLasPackBytesMM256VpermpsControl:NEAR
 
 ;
-; Stack frame layout for the QLinearBinaryElementwise kernel.
+; Stack frame layout for the QLinearBinaryOp kernels.
 ;
+
 QLinearBinaryOpFrame STRUCT
         SavedXmm6 OWORD ?
         SavedXmm7 OWORD ?
@@ -44,70 +45,122 @@ QLinearBinaryOpFrame STRUCT
         N QWORD ?
 QLinearBinaryOpFrame ENDS
 
+;
+; Macro Description:
+;
+;   This macro generates code to unpack 8 x (s/u)int8 to 8 x int32,
+;   according to signed/unsigned.
+;
+; Arguments:
+;
+;   Source - Supplies address of 8 x 8bits integers.
+;
+;   Target - target ymm register.
+;
+;   DataType - S8 or U8
+;
 
-UnpackBytesDWords MACRO  Target, Source, DataType
-IFIDNI <DataType>, <S8> 
-        vpmovsxbd Target,Source
+UnpackBytesDWords MACRO Target, Source, DataType
+IFIDN <DataType>, <S8> 
+        vpmovsxbd Target,QWORD PTR Source
 ELSE
-        vpmovzxbd Target,Source
+        vpmovzxbd Target,QWORD PTR Source
 ENDIF
         ENDM
 
+;
+; Macro Description:
+;
+;   This macro generates code to set Target 64bits register with the
+;   max value of signed/unsigned int8 specified by DataType.
+;
+; Arguments:
+;
+;   Target - target 64bits register.
+;
+;   DataType - S8 or U8.
+;
+
 SetMax8BitsValue MACRO Target, DataType
-IFIDNI <DataType>, <S8>
+IFIDN <DataType>, <S8>
         mov Target,QWORD PTR 127
 ELSE
         mov Target,QWORD PTR 255
 ENDIF
         ENDM
 
+;
+; Macro Description:
+;
+;   This macro generates code to set Target 64bits register with the
+;   min value of signed/unsigned int8 specified by DataType.
+;
+; Arguments:
+;
+;   Target - target 64bits register.
+;
+;   DataType - S8 or U8.
+;
+
 SetMin8BitsValue MACRO Target, DataType
-IFIDNI <DataType>, <S8>
+IFIDN <DataType>, <S8>
         mov Target,QWORD PTR -128
 ELSE
         mov Target,QWORD PTR 0
 ENDIF
         ENDM
 
-/*++
-    Generate function for QLienarBinaryOp()
-        DataType : S8 or U8
-        OpName:  Add, Mul, etc
-        OpInstruction: vaddps, vmulps, etc
-*/
+;
+; Macro Description:
+;
+;   This macro generates code for function QLinearOpName()
+;   on the specified signed/unsigned int8 DataType.
+;
+; Arguments:
+;
+;   DataType - S8 or U8.
+;
+;   OpName - Name of the QLinearOp, like Add, Mul, etc.
+;
+;   OpInstruction - the assembly code prefix which op() two ymm vector of floats,
+;                   like vaddps, vmulps, etc
+;
+
 QLinearBinaryOpAvx2 MACRO DataType, OpName, OpInstruction
-/*++
-Routine Description:
 
-    This routine implements the kernels for the Quantize Linear OpName
-    for element type DataType, vector on vector.
+;
+; Routine Description:
+;
+;    This routine implements the kernels for the Quantize Linear OpName
+;    for element type DataType, vector on vector.
+;
+; Arguments:
+;
+;    InputA (rcx) - Supplies the address of InputA.
+;
+;    ScaleA (xmm0) - Supplies A's Scale value in float.
+;
+;    ZeroPointA (rdx) - Supplies A's zero point value.
+;
+;    InputB (r8) - Supplies the address of InputB.
+;
+;    ScaleB (xmm1) - Supplies B's Scale value in float.
+;
+;    ZeroPointB (r9) - Supplies B's zero point value.
+;
+;    ScaleC (xmm2) - Supplies C's Scale value in float.
+;
+;    ZeroPointC - Supplies C's zero point value.
+;
+;    OutputC - Supplies the address of OutputC.
+;
+;    N - Supplies the number of elements to calculate.
+;
+; Return Value:
+;
+;    None.
+;
 
-Arguments:
-
-    InputA (rcx) - Supplies the address of InputA.
-
-    ScaleA (xmm0) - Supplies A's Scale value in float.
-
-    ZeroPointA (rdx) - Supplies A's zero point value.
-
-    InputB (r8) - Supplies the address of InputB.
-
-    ScaleB (xmm1) - Supplies B's Scale value in float.
-
-    ZeroPointB (r9) - Supplies B's zero point value.
-
-    ScaleC (xmm2) - Supplies C's Scale value in float.
-
-    ZeroPointC - Supplies C's zero point value.
-
-    OutputC - Supplies the address of OutputC.
-
-    N - Supplies the number of elements to calculate.
-
-Return Value:
-
-    None.
---*/
         NESTED_ENTRY MlasQLinear&OpName&&DataType&KernelAvx2, _TEXT
 
         alloc_stack (QLinearBinaryOpFrame.ReturnAddress)
@@ -121,18 +174,18 @@ Return Value:
 
         END_PROLOGUE
 
-        vbroadcastss ymm0,xmm0                  # Vector of ScaleA
-        vbroadcastss ymm1,xmm1                  # Vector of ScaleB
-        vbroadcastss ymm2,xmm2                  # Vector of ScaleC
-        and     rdx,QWORD PTR 0xFF
+        vbroadcastss ymm0,xmm0                  ; Vector of ScaleA
+        vbroadcastss ymm1,xmm1                  ; Vector of ScaleB
+        vbroadcastss ymm2,xmm2                  ; Vector of ScaleC
+        and     rdx,255
         movq    xmm3,rdx
-        and     r9,QWORD PTR 0xFF
+        and     r9,255
         movq    xmm4,r9
-        mov     dl,QLinearBinaryOpFrame.ZeroPointC[rsp]
+        mov     dl,BYTE PTR QLinearBinaryOpFrame.ZeroPointC[rsp]
         movq    xmm5,rdx
-        vbroadcastss ymm3,xmm3                  # Vector of ZeroPointA
-        vbroadcastss ymm4,xmm4                  # Vector of ZeroPointB
-        vbroadcastss ymm5,xmm5                  # Vector of ZeroPointC
+        vbroadcastss ymm3,xmm3                  ; Vector of ZeroPointA
+        vbroadcastss ymm4,xmm4                  ; Vector of ZeroPointB
+        vbroadcastss ymm5,xmm5                  ; Vector of ZeroPointC
 
         lea     rdx,MLasPackBytesMM256VpshufbControl
         vmovaps ymm10,[rdx]
@@ -159,23 +212,23 @@ QLinear&OpName&&DataType&Avx2Process8Loop:
 
         UnpackBytesDWords ymm8,[rcx],DataType
         UnpackBytesDWords ymm9,[r8],DataType
-        vpsubd  ymm9,ymm9,ymm4                  # - Zero Points respectively
+        vpsubd  ymm9,ymm9,ymm4                  ; - Zero Points respectively
         vpsubd  ymm8,ymm8,ymm3
-        vcvtdq2ps ymm8,ymm8                     # convert to float
+        vcvtdq2ps ymm8,ymm8                     ; convert to float
         vcvtdq2ps ymm9,ymm9
-        vmulps  ymm8,ymm8,ymm0                  # * Scales respectively 
+        vmulps  ymm8,ymm8,ymm0                  ; * Scales respectively 
         vmulps  ymm9,ymm9,ymm1
 
-        OpInstruction  ymm8,ymm8,ymm9          # OpName two float values
+        OpInstruction  ymm8,ymm8,ymm9           ; OpName two float values
 
-        vdivps  ymm8,ymm8,ymm2                  # Quantize 8 values, / ScaleC
-        add     rcx,rax                         # two out-of-order instructions
+        vdivps  ymm8,ymm8,ymm2                  ; Quantize 8 values, / ScaleC
+        add     rcx,rax                         ; two out-of-order instructions
         add     r9,rax
-        vcvtps2dq ymm8,ymm8                     # round()
+        vcvtps2dq ymm8,ymm8                     ; round()
         vpmaxsd ymm8,ymm8,ymm7
         vpminsd ymm8,ymm8,ymm6
-        vpaddd  ymm8,ymm8,ymm5                  # + ZeroPointC
-        vpshufb ymm8,ymm8,ymm10                 # pack 32bits integers into 8bit integers
+        vpaddd  ymm8,ymm8,ymm5                  ; + ZeroPointC
+        vpshufb ymm8,ymm8,ymm10                 ; pack 32bits integers into 8bit integers
         vpermps ymm8,ymm11,ymm8
 
         sub     rdx,rax
@@ -212,17 +265,18 @@ QLinear&OpName&&DataType&Avx2Exit:
 
         NESTED_END MlasQLinear&OpName&&DataType&KernelAvx2, _TEXT
 
-        END
-
+        ENDM
 
 ;
 ; Generate the QLinearAdd Avx2 S8 kernel.
 ;
+
 QLinearBinaryOpAvx2 S8,Add,vaddps
 
 ;
 ; Generate the QLinearAdd Avx2 U8 kernel.
 ;
+
 QLinearBinaryOpAvx2 U8,Add,vaddps
 
-        .end
+        END

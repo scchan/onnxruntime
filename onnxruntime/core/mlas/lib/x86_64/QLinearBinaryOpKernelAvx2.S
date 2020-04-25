@@ -6,7 +6,7 @@ Licensed under the MIT License.
 
 Module Name:
 
-    QuantizeAvx2.S
+    QLinearBinaryOpKernelAvx2.S
 
 Abstract:
 
@@ -36,6 +36,23 @@ Abstract:
 
         .text
 
+/*++
+
+Macro Description:
+
+   This macro generates code to unpack 8 x (s/u)int8 to 8 x int32,
+   according to signed/unsigned.
+
+Arguments:
+
+   Source - Supplies address of 8 x 8bits integers.
+
+   Target - target ymm register.
+
+   DataType - S8 or U8
+
+--*/
+
         .macro UnpackBytesDWords Target, Source, DataType
 .ifeqs "\DataType\()","S8"
         vpmovsxbd \Target\(),\Source\()
@@ -43,6 +60,22 @@ Abstract:
         vpmovzxbd \Target\(),\Source\()
 .endif
         .endm
+
+
+/*++
+
+Macro Description:
+
+   This macro generates code to set Target 64bits register with the
+   max value of signed/unsigned int8 specified by DataType.
+
+Arguments:
+
+   Target - target 64bits register.
+
+   DataType - S8 or U8.
+
+--*/
 
         .macro SetMax8BitsValue Target, DataType
 .ifeqs "\DataType\()","S8"
@@ -52,6 +85,22 @@ Abstract:
 .endif
         .endm
 
+
+/*++
+
+Macro Description:
+
+   This macro generates code to set Target 64bits register with the
+   min value of signed/unsigned int8 specified by DataType.
+
+Arguments:
+
+   Target - target 64bits register.
+
+   DataType - S8 or U8.
+
+--*/
+
         .macro SetMin8BitsValue Target, DataType
 .ifeqs "\DataType\()","S8"
         mov \Target\(),QWORD PTR -128
@@ -60,12 +109,25 @@ Abstract:
 .endif
         .endm
 
+
 /*++
-    Generate function for QLienarBinaryOp() for OpName on DataType
-        DataType : S8 or U8
-        OpName:  Add, Mul, etc
-        OpInstruction: vaddps, vmulps, etc
-*/
+
+Macro Description:
+
+   This macro generates code for function QLinearOpName()
+   on the specified signed/unsigned int8 DataType.
+
+Arguments:
+
+   DataType - S8 or U8.
+
+   OpName - Name of the QLinearOp, like Add, Mul, etc.
+
+   OpInstruction - the assembly code prefix which op() two ymm vector of floats,
+                   like vaddps, vmulps, etc
+
+--*/
+
         .macro QLinearBinaryOpAvx2 DataType, OpName, OpInstruction
 
 /*++
@@ -102,15 +164,15 @@ Return Value:
 --*/
         .globl  C_UNDERSCORE(MlasQLinear\OpName\()\DataType\()KernelAvx2)
 C_UNDERSCORE(MlasQLinear\OpName\()\DataType\()KernelAvx2):
+        vbroadcastss ymm0,xmm0                  # Vector of ScaleA
+        vbroadcastss ymm1,xmm1                  # Vector of ScaleB
+        vbroadcastss ymm2,xmm2                  # Vector of ScaleC
         movq    xmm3,rsi
         movq    xmm4,rcx
         movq    xmm5,r8
         vbroadcastss ymm3,xmm3                  # Vector of ZeroPointA
         vbroadcastss ymm4,xmm4                  # Vector of ZeroPointB
         vbroadcastss ymm5,xmm5                  # Vector of ZeroPointC
-        vbroadcastss ymm0,xmm0                  # Vector of ScaleA
-        vbroadcastss ymm1,xmm1                  # Vector of ScaleB
-        vbroadcastss ymm2,xmm2                  # Vector of ScaleC
 
         lea     r8,C_UNDERSCORE(MLasPackBytesMM256VpshufbControl)[rip]
         vmovaps ymm10,[r8]
@@ -183,11 +245,13 @@ C_UNDERSCORE(MlasQLinear\OpName\()\DataType\()KernelAvx2):
 //
 // Generate the QLinearAdd Avx2 S8 kernel.
 //
+
 QLinearBinaryOpAvx2 S8,Add,vaddps
 
 //
 // Generate the QLinearAdd Avx2 U8 kernel.
 //
+
 QLinearBinaryOpAvx2 U8,Add,vaddps
 
         .end
