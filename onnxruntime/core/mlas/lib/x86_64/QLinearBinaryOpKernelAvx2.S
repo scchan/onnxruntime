@@ -61,12 +61,12 @@ Abstract:
         .endm
 
 /*++
-    Generate function for QLienarBinaryElementwiseOp()
+    Generate function for QLienarBinaryOp() for OpName on DataType
         DataType : S8 or U8
         OpName:  Add, Mul, etc
         OpInstruction: vaddps, vmulps, etc
 */
-        .macro QLinearBinaryElementwiseOpAvx2 DataType, OpName, OpInstruction
+        .macro QLinearBinaryOpAvx2 DataType, OpName, OpInstruction
 
 /*++
 Routine Description:
@@ -183,11 +183,11 @@ C_UNDERSCORE(MlasQLinear\OpName\()\DataType\()KernelAvx2):
 //
 // Generate the QLinearAdd Avx2 S8 kernel.
 //
-QLinearBinaryElementwiseOpAvx2 S8,Add,vaddps
+QLinearBinaryOpAvx2 S8,Add,vaddps
 
 //
 // Generate the QLinearAdd Avx2 U8 kernel.
 //
-QLinearBinaryElementwiseOpAvx2 U8,Add,vaddps
+QLinearBinaryOpAvx2 U8,Add,vaddps
 
         .end
