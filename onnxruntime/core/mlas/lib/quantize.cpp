@@ -701,18 +701,23 @@ struct MlasQLinearAddBatch {
     }
 
     const T* InputA_;
+    float ScaleA_;
+    T ZeroPointA_;
     const T* InputB_;
-    float ScaleA_, ScaleB_, ScaleC_;
-    T ZeroPointA_, ZeroPointB_, ZeroPointC_;
+    float ScaleB_;
+    T ZeroPointB_;
+    float ScaleC_;
+    T ZeroPointC_;
     T* OutputC_;
     size_t N_;
-    int64_t BatchCount_, ThreadingBatch_;
+    int64_t BatchCount_;
+    int64_t ThreadingBatch_;
 };
 
 template <typename T>
 void
 MLASCALL
-MlasQLinearAdd<T>(
+MlasQLinearAdd(
     const T* InputA,
     float ScaleA,
     T ZeroPointA,

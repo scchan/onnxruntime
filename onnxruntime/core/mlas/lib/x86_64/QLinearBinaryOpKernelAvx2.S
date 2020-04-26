@@ -167,9 +167,9 @@ C_UNDERSCORE(MlasQLinear\OpName\()\DataType\()KernelAvx2):
         vbroadcastss ymm0,xmm0                  # Vector of ScaleA
         vbroadcastss ymm1,xmm1                  # Vector of ScaleB
         vbroadcastss ymm2,xmm2                  # Vector of ScaleC
-        movq    xmm3,rsi
-        movq    xmm4,rcx
-        movq    xmm5,r8
+        movq    xmm3,rsi                        # ZeroPointA, lower 32bits are zero/sign extended already.
+        movq    xmm4,rcx                        # ZeroPointB, lower 32bits are zero/sign extended already.
+        movq    xmm5,r8                         # ZeroPointC, lower 32bits are zero/sign extended already.
         vbroadcastss ymm3,xmm3                  # Vector of ZeroPointA
         vbroadcastss ymm4,xmm4                  # Vector of ZeroPointB
         vbroadcastss ymm5,xmm5                  # Vector of ZeroPointC
