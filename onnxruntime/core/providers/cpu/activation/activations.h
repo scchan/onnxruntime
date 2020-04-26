@@ -4,9 +4,9 @@
 #pragma once
 
 #include "core/common/common.h"
+#include "core/platform/threadpool.h"
 #include "core/framework/op_kernel.h"
 #include "core/util/math_cpuonly.h"
-
 namespace onnxruntime {
 
 #define EIGEN_X ConstEigenVectorArrayMap<T>(X->template Data<T>(), X->Shape().Size())
@@ -20,10 +20,23 @@ class Elu final : public OpKernel {
   Elu(const OpKernelInfo& info) : OpKernel(info), alpha_(info.GetAttrOrDefault("alpha", 1.0f)) {}
 
   Status Compute(OpKernelContext* context) const override {
-    const auto* X = context->Input<Tensor>(0);
+    const Tensor* X = context->Input<Tensor>(0);
     Tensor* Y = context->Output(0, X->Shape());
-    EIGEN_X_VAR(xm);
-    EIGEN_Y = (xm >= 0).select(xm, (T)alpha_ * (xm.exp() - 1));
+    T alpha = static_cast<T>(alpha_);    
+    concurrency::ThreadPool* tp = context->GetOperatorThreadPool();
+    const int64_t input_size = X->Shape().Size();
+    std::ptrdiff_t batch_size = static_cast<std::ptrdiff_t>(input_size);
+    //The cost comes from microbenchmark(manual tunning).
+    const double cost = 40.0;
+    const T* data = X->template Data<T>();
+    T* output = Y->template MutableData<T>();
+    concurrency::ThreadPool::TryParallelFor(tp, batch_size, cost, [alpha, data, output](ptrdiff_t first, ptrdiff_t last){
+		  ptrdiff_t len = last - first;
+		  T* output_ptr = output + first;
+		  onnxruntime::ConstEigenVectorArrayMap<float> xm(data + first, len);
+		  onnxruntime::EigenVectorArrayMap<float> ym(output_ptr, len);
+		  ym = (xm >= 0).select(xm, alpha * (xm.exp() - 1));
+		});
     return Status::OK();
   }
 

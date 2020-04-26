@@ -9,7 +9,7 @@ static void BM_BatchNormEigenTensor(benchmark::State& state) {
   param.auto_set_affinity = true;
   param.thread_pool_size = 0;
   std::unique_ptr<concurrency::ThreadPool> tp =
-      concurrency::CreateThreadPool(&onnxruntime::Env::Default(), param, nullptr);
+      concurrency::CreateThreadPool(&onnxruntime::Env::Default(), param,concurrency::ThreadPoolType::INTRA_OP,  nullptr);
   const size_t batch_size = state.range(0);
 
   const std::vector<size_t> dims_vec{batch_size, 64, 75, 75};

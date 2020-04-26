@@ -22,7 +22,7 @@ static int64_t CalcSize(int64_t* shape, size_t len) {
 }
 
 static void RunMlasPool2D(const OrtThreadPoolParams& param, int64_t batch_size, benchmark::State& state) {
-	std::unique_ptr<ThreadPool> tp = CreateThreadPool(&onnxruntime::Env::Default(), param);
+	std::unique_ptr<ThreadPool> tp = CreateThreadPool(&onnxruntime::Env::Default(), param,onnxruntime::concurrency::ThreadPoolType::INTRA_OP,  nullptr);
 	int64_t input_shape[] = { 1, 64, 112, 112 };
 	int64_t kernel_shape[] = { 3, 3 };
 	int64_t padding[] = { 0, 0, 1, 1 };
@@ -87,7 +87,7 @@ BENCHMARK(BM_MlasPoolNoSpinNoAffinity)->UseRealTime()->Arg(1)->Arg(4)->Unit(benc
 
 
 static void RunPool2D(const OrtThreadPoolParams& param, int64_t batch_size, benchmark::State& state) {
-	std::unique_ptr<ThreadPool> tp = CreateThreadPool(&onnxruntime::Env::Default(), param);
+	std::unique_ptr<ThreadPool> tp = CreateThreadPool(&onnxruntime::Env::Default(), param,onnxruntime::concurrency::ThreadPoolType::INTRA_OP,  nullptr);
 	int64_t input_shape[] = { 1, 64, 112, 112 };
 	std::vector<int64_t> kernel_shape = { 3, 3 };
 	std::vector<int64_t> padding = { 0, 0, 1, 1 };

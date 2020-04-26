@@ -41,7 +41,7 @@ static void BM_ThreadPoolParallelFor(benchmark::State& state) {
         const int cost = static_cast<int>(state.range(1));
         OrtThreadPoolParams tpo;
         std::unique_ptr<concurrency::ThreadPool> tp(
-            concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, nullptr));
+            concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, ThreadPoolType::INTRA_OP,  nullptr));
         for (auto _ : state) {
 		tp->ParallelFor(len, cost, SimpleForLoop);
 	}
@@ -104,7 +104,7 @@ static void BM_SimpleScheduleWait(benchmark::State& state) {
 	OrtThreadPoolParams tpo;
 	tpo.auto_set_affinity = true;
 	tpo.thread_pool_size = 0;
-	std::unique_ptr<concurrency::ThreadPool> tp(concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, nullptr));
+	std::unique_ptr<concurrency::ThreadPool> tp(concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, ThreadPoolType::INTRA_OP,  nullptr));
 	size_t threads = tp->NumThreads();
 
 	for (auto _ : state) {
