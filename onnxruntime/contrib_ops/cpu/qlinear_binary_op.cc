@@ -1,7 +1,7 @@
 // Copyright (c Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-#include "quantize_linear_element_wise.h"
+#include "qlinear_binary_op.h"
 #include "core/providers/cpu/math/element_wise_ops.h"
 #include "core/mlas/inc/mlas.h"
 
