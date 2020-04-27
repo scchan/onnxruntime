@@ -81,7 +81,6 @@ jobs:
 
   - script: |
      set PATH=$(Build.BinariesDirectory)\$(BuildConfig)\$(BuildConfig);%PATH%
-     mklink  /D /J $(Build.BinariesDirectory)\$(BuildConfig)\models $(Build.BinariesDirectory)\models
 
   - task: VSTest@2
     displayName: 'VsTest - testAssemblies'
