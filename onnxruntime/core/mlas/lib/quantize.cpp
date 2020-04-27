@@ -218,7 +218,11 @@ MlasDequantizeLinearVector(
     MLAS_INT32X4 ZeroPointVector
     )
 {
+#if defined(MLAS_NEON64_INTRINSICS)
+    return MlasMultiplyFloat32x4(vcvtq_f32_s32(vsubq_s32(IntVector, ZeroPointVector)), ScaleVector);
+#else
     return MlasMultiplyFloat32x4(_mm_cvtepi32_ps(_mm_sub_epi32(IntVector, ZeroPointVector)), ScaleVector);
+#endif
 }
 
 template<typename DataType>
@@ -234,9 +238,14 @@ MlasQuantizeLinearUnpackBytes<uint8_t>(
     MLAS_INT32X4 IntegerVector
     )
 {
+#if defined(MLAS_NEON64_INTRINSICS)
+    uint16x8_t vl = vmovl_u8(vget_low_u8(vreinterpretq_u8_s32(IntegerVector)));
+    IntegerVector = vreinterpretq_s32_u32(vmovl_u16(vget_low_u16(vl)));
+#else
     IntegerVector = _mm_unpacklo_epi8(IntegerVector, IntegerVector);
     IntegerVector = _mm_unpacklo_epi16(IntegerVector, IntegerVector);
     IntegerVector = _mm_srli_epi32(IntegerVector, 24);
+#endif
     return IntegerVector;
 }
 
@@ -247,9 +256,14 @@ MlasQuantizeLinearUnpackBytes<int8_t>(
     MLAS_INT32X4 IntegerVector
     )
 {
+#if defined(MLAS_NEON64_INTRINSICS)
+    int16x8_t vl = vmovl_s8(vget_low_s8(vreinterpretq_s8_s32(IntegerVector)));
+    IntegerVector = vmovl_s16(vget_low_s16(vl));
+#else
     IntegerVector = _mm_unpacklo_epi8(IntegerVector, IntegerVector);
     IntegerVector = _mm_unpacklo_epi16(IntegerVector, IntegerVector);
     IntegerVector = _mm_srai_epi32(IntegerVector, 24);
+#endif
     return IntegerVector;
 }
 
@@ -291,7 +305,11 @@ MlasQLinearAddKernel(
                 MinimumValueVectorC, MaximumValueVectorC, ZeroPointVectorC);
         IntegerVectorC = MlasQuantizeLinearPackBytes<DataType>(IntegerVectorC);
 
+#if defined(MLAS_NEON64_INTRINSICS)
+        vst1q_lane_s32((int32_t*)OutputC, IntegerVectorC, 0);
+#else
         *((int32_t*)OutputC) = _mm_cvtsi128_si32(IntegerVectorC);
+#endif
 
         InputA += 4;
         InputB += 4;
@@ -300,15 +318,20 @@ MlasQLinearAddKernel(
     }
 
     if (N > 0) {
-        auto IntegerVectorA = MlasQuantizeLinearUnpackBytes<DataType>(_mm_castps_si128(_mm_load_ss((const float*)InputA)));
-        auto IntegerVectorB = MlasQuantizeLinearUnpackBytes<DataType>(_mm_castps_si128(_mm_load_ss((const float*)InputB)));
+        auto IntegerVectorA = MlasQuantizeLinearUnpackBytes<DataType>(MlasBroadcastInt32x4(*((const int32_t*)InputA)));
+        auto IntegerVectorB = MlasQuantizeLinearUnpackBytes<DataType>(MlasBroadcastInt32x4(*((const int32_t*)InputB)));
         auto FloatVectorC = MlasAddFloat32x4(
                 MlasDequantizeLinearVector(IntegerVectorA, ScaleVectorA, ZeroPointVectorA),
                 MlasDequantizeLinearVector(IntegerVectorB, ScaleVectorB, ZeroPointVectorB));
         auto IntegerVectorC = MlasQuantizeLinearVector(FloatVectorC, ScaleVectorC,
                 MinimumValueVectorC, MaximumValueVectorC, ZeroPointVectorC);
         IntegerVectorC = MlasQuantizeLinearPackBytes<DataType>(IntegerVectorC);
-        uint32_t PackedValueC = (uint32_t)_mm_cvtsi128_si32(IntegerVectorC);
+        uint32_t PackedValueC = 0;
+#if defined(MLAS_NEON64_INTRINSICS)
+        vst1q_lane_s32((int32_t*)&PackedValueC, IntegerVectorC, 0);
+#else
+        *((int32_t*)&PackedValueC) = _mm_cvtsi128_si32(IntegerVectorC);
+#endif
         for (size_t n = 0; n < N; ++n) {
             *((uint8_t*)OutputC + n) = (uint8_t)PackedValueC;
             PackedValueC >>= 8;
