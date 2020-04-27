@@ -14,8 +14,7 @@ class Memcpy final : public OpKernel {
 
   Status Compute(OpKernelContext* context) const override;
 
- private:
-  const IExecutionProvider* provider_;
+
 };
 
 }  // namespace onnxruntime

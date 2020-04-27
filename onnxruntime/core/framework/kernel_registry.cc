@@ -238,6 +238,7 @@ Status KernelRegistry::TryCreateKernel(const onnxruntime::Node& node,
 
   OpKernelInfo kernel_info(node,
                            *kernel_create_info->kernel_def,
+                           execution_provider.GetDeviceId(),
                            execution_provider,
                            constant_initialized_tensors,
                            ort_value_name_idx_map,

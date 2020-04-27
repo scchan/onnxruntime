@@ -39,7 +39,7 @@ struct NodeComputeInfo {
   DestroyFunctionStateFunc release_state_func;
 };
 
-class IExecutionProvider {
+class IExecutionProvider: public IAllocatorManager {
  protected:
   IExecutionProvider(const std::string& type) : type_{type} {}
 
@@ -56,7 +56,7 @@ class IExecutionProvider {
   /**
    * Get an allocator with specified device id and MemType. Return nullptr if it doesn't exist
    */
-  virtual AllocatorPtr GetAllocator(int id, OrtMemType mem_type) const;
+  AllocatorPtr GetAllocator(int id, OrtMemType mem_type) const override;
 
   /**
    * Returns a data transfer object that implements methods to copy to and

@@ -310,4 +310,13 @@ class MiMallocAllocator : public IDeviceAllocator {
 
 using AllocatorPtr = std::shared_ptr<IAllocator>;
 
+class IAllocatorManager{
+public:
+  virtual ~IAllocatorManager() = default;
+  
+  /**
+   * Get an allocator with specified device id and MemType. Return nullptr if it doesn't exist
+   */
+  virtual AllocatorPtr GetAllocator(int id, OrtMemType mem_type) const = 0;
+};
 }  // namespace onnxruntime

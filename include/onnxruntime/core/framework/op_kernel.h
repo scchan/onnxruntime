@@ -164,7 +164,8 @@ class OpKernelContext {
   Return the device id that current kernel runs on.
   */
   int GetDeviceId() const {
-    return kernel_->Info().GetExecutionProvider()->GetDeviceId();
+    //return kernel_->Info().GetExecutionProvider()->GetDeviceId();
+    return 0;
   }
 
   /**

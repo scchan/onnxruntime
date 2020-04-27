@@ -23,7 +23,8 @@ class OpKernelInfo : public OpNodeProtoHelper<ProtoHelperNodeContext> {
  public:
   explicit OpKernelInfo(const onnxruntime::Node& node,
                         const KernelDef& kernel_def,
-                        const IExecutionProvider& execution_provider,
+                        int device_id,
+                        const IAllocatorManager& alloc,
                         const std::unordered_map<int, OrtValue>& constant_initialized_tensors,
                         const OrtValueNameIdxMap& mlvalue_name_idx_map,
                         const FuncManager& funcs_mgr,
@@ -37,8 +38,6 @@ class OpKernelInfo : public OpNodeProtoHelper<ProtoHelperNodeContext> {
 
   const KernelDef& GetKernelDef() const;
 
-  const IExecutionProvider* GetExecutionProvider() const noexcept;
-
   const DataTransferManager& GetDataTransferManager() const noexcept;
 
   const onnxruntime::Node& node() const noexcept;
@@ -48,6 +47,9 @@ class OpKernelInfo : public OpNodeProtoHelper<ProtoHelperNodeContext> {
   common::Status GetFusedFuncs(ComputeFunc* compute,
                                CreateFunctionStateFunc* create,
                                DestroyFunctionStateFunc* release) const;
+  const int GetDeviceId() const{
+    return device_id_;
+  }
 
  private:
   ORT_DISALLOW_MOVE(OpKernelInfo);
@@ -55,9 +57,8 @@ class OpKernelInfo : public OpNodeProtoHelper<ProtoHelperNodeContext> {
 
   const onnxruntime::Node& node_;
   const KernelDef& kernel_def_;
-  // For non cpu/cuda case, this pointer should be set so that function kernel
-  // will delegate kernel compute call to <execution_provider> compute call.
-  gsl::not_null<const ::onnxruntime::IExecutionProvider*> execution_provider_;
+  const int device_id_;
+  const IAllocatorManager& allocs_;  
   const std::unordered_map<int, OrtValue>& constant_initialized_tensors_;
   const OrtValueNameIdxMap& ort_value_name_idx_map_;
   const FuncManager& funcs_mgr_;

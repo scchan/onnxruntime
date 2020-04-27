@@ -8,6 +8,8 @@
 #pragma warning(push)
 #pragma warning(disable : 4267)
 #pragma warning(disable : 4127)
+#pragma warning(disable : 4805)
+#pragma warning(disable : 4554)
 #endif
 #include <unsupported/Eigen/CXX11/Tensor>
 #if defined(__GNUC__)
